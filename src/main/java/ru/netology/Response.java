@@ -9,32 +9,24 @@ public class Response {
     private final int status;
     private final String statusMessage;
     private final String contentType;
-    private final long contentLength;
     private final byte[] content;
 
-    public Response(int status, String statusMessage, String contentType, long contentLength, byte[] content) {
+    public Response(int status, String statusMessage, String contentType, byte[] content) {
         this.status = status;
         this.statusMessage = statusMessage;
         this.contentType = contentType;
-        this.contentLength = contentLength;
         this.content = content;
     }
     public void send(BufferedOutputStream out) throws IOException {
         out.write(toString().getBytes());
         out.write(content);
-        out.flush();
-    }
-    public void send(BufferedOutputStream out, Path filePath) throws IOException {
-        out.write(toString().getBytes());
-        Files.copy(filePath, out);
-        out.flush();
     }
 
     @Override
     public String toString(){
-        return "HTTP/1.1 " + status + " " + statusMessage + "\r\n" +
-                "Content-Length: " + contentLength + "\r\n" +
-                (status == 404 ? "" : ("Content-Type: " + contentType + "\r\n")) +
+        return "HTTP/1.1 " + " " + status + " " + statusMessage + "\r\n" +
+                (content == null ? "" : ("Content-Length: " + content.length + "\r\n" +
+                        "Content-Type: " + contentType + "\r\n")) +
                 "Connection: close\r\n" +
                 "\r\n";
     }

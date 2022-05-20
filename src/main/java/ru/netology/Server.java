@@ -9,14 +9,17 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
     private final ExecutorService pool;
-    private final List<String> validPaths = List.of("/index.html", "/spring.svg", "/spring.png", "/resources.html", "/styles.css", "/app.js", "/links.html", "/forms.html", "/classic.html", "/events.html", "/events.js");
     private final int THREAD_POOL_COUNT = 64;
+    Map<String, Map<String, Handler>> handlers = new HashMap<>();
 
     public Server() {
         pool = Executors.newFixedThreadPool(THREAD_POOL_COUNT);
@@ -35,59 +38,54 @@ public class Server {
     }
 
     private void connectionProcessing(Socket socket) {
+        List<String> requestList = new ArrayList<>();
         try (
                 final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 final var out = new BufferedOutputStream(socket.getOutputStream())
         ) {
-            final var requestLine = in.readLine();
+            var requestLine = in.readLine();
+            var requestBuilder = new RequestBuilder();
             final var parts = requestLine.split(" ");
 
             if (parts.length != 3) {
                 return;
             }
-            final var path = parts[1];
-            sendMsg(path, out);
+            while((requestLine = in.readLine()).length() > 0){
+                requestList.add(requestLine);
+            }
+            StringBuilder stringBuilder = new StringBuilder();
+            if(!parts[0].equals("GET")) {
+                String bodyLine;
+                while ((bodyLine = in.readLine()) != null) {
+                    System.out.println(bodyLine);
+                    stringBuilder.append(bodyLine + "\n");
+                }
+            }
+            Request request = requestBuilder.setMethod(parts[0])
+                    .setPath(parts[1])
+                    .setProtocolVersion(parts[2])
+                    .setHeaders(requestList)
+                    .setBody(stringBuilder.toString())
+                    .build();
+            System.out.println(request.toString());
+
+            Map<String, Handler> innerMap = handlers.get(request.getMethod());
+            Handler handler = innerMap.get(request.getPath());
+            if(handler == null){
+                handler = handlers.get("GET").get("/404.html");
+            }
+            handler.handle(request, out);
 
         } catch (IOException ex) {
             ex.printStackTrace();
         }
     }
 
-    private void sendMsg(String path, BufferedOutputStream out) throws IOException {
-        ResponseBuilder responseBuilder = new ResponseBuilder();
-
-        final var filePath = Path.of(".", "public", path);
-        final var mimeType = Files.probeContentType(filePath);
-
-        if (!validPaths.contains(path)) {
-            responseBuilder.setStatus(404)
-                    .setStatusMessage("Not Found")
-                    .build()
-                    .send(out);
-            return;
-        }
-
-        responseBuilder.setStatus(200)
-                .setStatusMessage("OK")
-                .setContentType(mimeType);
-
-        if (path.equals("/classic.html")) {
-            final var template = Files.readString(filePath);
-            final var content = template.replace(
-                    "{time}",
-                    LocalDateTime.now().toString()
-            ).getBytes();
-
-            responseBuilder.setContent(content)
-                    .setContentLength(content.length)
-                    .build()
-                    .send(out);
-            return;
-        }
-
-        Response response = responseBuilder.setContentLength(Files.size(filePath))
-                .build();
-        System.out.println(response);
-        response.send(out, filePath);
+    public void addHandler(String method, String path, Handler handler){
+        Map<String, Handler> innerMap = handlers.get(method);
+        if(innerMap == null)
+            innerMap = new HashMap<>();
+        innerMap.put(path, handler);
+        handlers.put(method, innerMap);
     }
 }

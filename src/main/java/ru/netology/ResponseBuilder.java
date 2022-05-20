@@ -4,7 +4,6 @@ public class ResponseBuilder {
     private int status;
     private String statusMessage;
     private String contentType;
-    private long contentLength = 0;
     private byte[] content;
 
     public ResponseBuilder setStatus(int status) {
@@ -22,17 +21,12 @@ public class ResponseBuilder {
         return this;
     }
 
-    public ResponseBuilder setContentLength(long contentLength) {
-        this.contentLength = contentLength;
-        return this;
-    }
-
     public ResponseBuilder setContent(byte[] content){
         this.content = content;
         return this;
     }
 
     public Response build(){
-        return new Response(status, statusMessage, contentType, contentLength, content);
+        return new Response(status, statusMessage, contentType, content);
     }
 }
